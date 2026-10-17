@@ -1,59 +1,63 @@
 # CPU Balancer
 
-![CPU Balancer — редактор схемы питания](docs/screenshot.webp)
+**English** | [Русский](README.ru.md)
 
-Консольное приложение для тонкой настройки схем питания процессора ноутбука под Windows 10/11.
-Ползунки, переключатели, пресеты и откат — без установки и без зависимостей, чистый PowerShell.
+![CPU Balancer — power plan editor](docs/screenshot.webp)
 
-Сделано под гибридные Intel (Arrow Lake / Lunar Lake / Meteor Lake), работает на любом x86:
-настройки, которых нет в системе, просто показываются как «н/д».
+A console app for fine-tuning a laptop CPU's power plans on Windows 10/11.
+Sliders, toggles, presets and rollback — no installation, no dependencies, pure PowerShell.
 
-## Запуск
+Built for Intel hybrid CPUs (Arrow Lake / Lunar Lake / Meteor Lake), but runs on any x86:
+settings your system doesn't have are simply shown as unavailable.
 
-1. Скачай `CPU-Balancer.cmd` и `CPU-Balancer.ps1` в одну папку.
-2. Дважды кликни `CPU-Balancer.cmd` и подтверди запрос администратора (UAC) — без него Windows не даст менять схемы питания.
-3. Выбери схему питания и настраивай.
+> The app interface is in Russian for now.
 
-## Что можно настроить
+## Getting started
 
-Каждую настройку — отдельно «от сети» и «от батареи».
+1. Download the archive from the [latest release](https://github.com/DonaK200097/cpu-balancer/releases/latest) and unzip it (or put `CPU-Balancer.cmd` and `CPU-Balancer.ps1` in the same folder).
+2. Double-click `CPU-Balancer.cmd` and accept the administrator prompt (UAC) — Windows won't let you change power plans without it.
+3. Pick a power plan and start tuning.
 
-| Группа | Настройки |
+## What you can tune
+
+Every setting has separate values for "plugged in" and "on battery".
+
+| Group | Settings |
 |---|---|
-| Главное | EPP P-ядер и E-ядер (скорость ⟷ экономия), турбо-буст, макс./мин. производительность, лимиты частоты P- и E-ядер |
-| Ядра | парковка ядер, распределение задач между P/E-ядрами, удержание фона на E-ядрах (зоны ограничения Windows 11) |
-| Прочее | отклик на действия (подсказки задержек), HWP или Windows, экономия PCIe (ASPM), политика охлаждения |
+| Main | EPP for P-cores and E-cores (speed ⟷ efficiency), turbo boost, max/min performance, P- and E-core frequency limits |
+| Cores | core parking, how tasks are split between P/E-cores, keeping background work on E-cores (Windows 11 containment zones) |
+| Other | responsiveness (latency hints), HWP vs. Windows control, PCIe power saving (ASPM), system cooling policy |
 
-Под каждой настройкой — объяснение простыми словами и подсказка, в какую сторону холоднее.
-Маркер `│` на ползунке показывает исходное значение схемы.
+Each setting comes with a plain-language explanation and a hint about which direction runs cooler.
+The `│` marker on a slider shows the plan's original value.
 
-## Пресеты
+## Presets
 
-| # | Пресет | Для чего |
+| # | Preset | Use it for |
 |---|---|---|
-| 1 | Тихий и холодный | минимум шума и градусов, фон на E-ядрах |
-| 2 | Баланс (Hydroc) | EPP 64/80, фон на E-ядрах, без всплесков частоты |
-| 3 | Hydroc мягче | то же, но EPP посередине — больше скорости, чуть теплее |
-| 4 | Производительность | игры и тяжёлые задачи, быстрый отклик |
-| 5 | Максимум батареи | меняет только «от батареи»: буст выкл, EPP 90/95 |
+| 1 | Quiet & cool | least noise and heat, background work on E-cores |
+| 2 | Balance (Hydroc) | EPP 64/80, background on E-cores, no frequency spikes |
+| 3 | Hydroc softer | same, but EPP halfway — more speed, slightly warmer |
+| 4 | Performance | games and heavy workloads, snappy response |
+| 5 | Max battery | changes "on battery" only: boost off, EPP 90/95 |
 
-Пресет только подставляет значения — их можно докрутить и сохранить.
+A preset only fills in values — you can fine-tune them before saving.
 
-## Управление
+## Controls
 
-- **Мышь:** тяни ползунок или кликни по шкале, колесо — шаг (с Shift — точно), клик по `◄` / по названию — переключить, кнопки и пресеты кликабельны.
-- **Клавиатура:** ↑↓ выбор, ←→ изменить, Shift+←→ точно, PgUp/PgDn крупно, Tab — сеть/батарея, 1–5 — пресеты,
-  S — сохранить, Z — отменить правки, R — исходные значения, A — сделать схему активной, C — копировать в соседний столбец, Esc — назад.
+- **Mouse:** drag a slider or click the scale, scroll wheel = one step (hold Shift for fine steps), click `◄` / the option name to switch, buttons and presets are clickable.
+- **Keyboard:** ↑↓ select, ←→ change, Shift+←→ fine, PgUp/PgDn coarse, Tab — plugged in / battery, 1–5 — presets,
+  S — save, Z — discard edits, R — original values, A — make the plan active, C — copy to the other column, Esc — back.
 
-Правки копятся (помечены `*`) и применяются только по «Сохранить».
+Edits pile up (marked with `*`) and are applied only when you press Save.
 
-## Откат
+## Rollback
 
-При первом открытии схемы её исходные значения сохраняются в `backups\<GUID схемы>.json`.
-Кнопка «Исходные» (R) возвращает их в любой момент.
+The first time you open a plan, its original values are saved to `backups\<plan GUID>.json`.
+The "Original" button (R) brings them back at any time.
 
 ## G-Helper / Armoury Crate
 
-Они переключают схемы питания вместе со своими режимами (Silent / Balanced / Turbo),
-поэтому удобно настроить каждую схему под свой режим. Лимиты мощности (PL1/PL2) и вентиляторы
-по-прежнему задаются в G-Helper / Armoury.
+These tools switch power plans together with their own modes (Silent / Balanced / Turbo),
+so it's handy to tune each plan for its mode. Power limits (PL1/PL2) and fan curves
+are still set in G-Helper / Armoury.
