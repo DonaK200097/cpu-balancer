@@ -43,11 +43,27 @@ The `│` marker on a slider shows the plan's original value.
 
 A preset only fills in values — you can fine-tune them before saving.
 
+## Background apps on E-cores
+
+The **Background apps on E-cores** screen (F) lists running programs by current CPU load. For each one you can pick a mode:
+
+| Mode | What it does |
+|---|---|
+| Normal | default Windows behaviour |
+| Eco | EcoQoS — the same mechanism as "Efficiency mode" in Task Manager: Windows treats the app as background work, keeps it on E-cores at low clocks and doesn't wake the P-cores. Priority is lowered to Below normal |
+| E-cores only | Eco + hard affinity to E/LP-E cores — the coolest option, but the app gets slower |
+
+Good candidates: messengers, torrent clients, launchers, sync tools. Don't use it for games or apps you actively work in.
+
+A mode lasts only while the process is running. **Auto-apply** (W) adds a Task Scheduler task that runs at logon,
+re-applies the modes to every new process of the selected apps right when it starts, and re-checks every 30 s.
+The list is stored in `eco-apps.json` next to the app.
+
 ## Controls
 
 - **Mouse:** drag a slider or click the scale, scroll wheel = one step (hold Shift for fine steps), click `◄` / the option name to switch, buttons and presets are clickable.
 - **Keyboard:** ↑↓ select, ←→ change, Shift+←→ fine, PgUp/PgDn coarse, Tab — plugged in / battery, 1–5 — presets,
-  S — save, Z — discard edits, R — original values, A — make the plan active, C — copy to the other column, Esc — back.
+  S — save, Z — discard edits, R — original values, A — make the plan active, C — copy to the other column, F — background apps on E-cores, Esc — back.
 
 Edits pile up (marked with `*`) and are applied only when you press Save.
 

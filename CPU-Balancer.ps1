@@ -1,7 +1,7 @@
 ﻿# CPU Balancer — тонкая настройка схем питания процессора ноутбука (Intel hybrid / любой x86).
 # Запуск: CPU-Balancer.cmd (сам запросит права администратора).
 # -Test : без UI и без изменений, печатает экран для активной схемы (для проверки).
-param([switch]$Test)
+param([switch]$Test, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
 $AppDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -470,8 +470,8 @@ function Build-Editor {
     }
     $L.Add($pl)
     $L.Add(@(Seg ''))
-    $L.Add(@((Seg ' '), (Btn 'Сохранить  S' 'S'), (Seg ' '), (Btn 'Отменить правки  Z' 'Z'), (Seg ' '), (Btn 'Исходные  R' 'R'), (Seg ' '),
-             (Btn 'Сделать активной  A' 'A'), (Seg ' '), (Btn 'Копировать в др. столбец  C' 'C'), (Seg ' '), (Btn 'Назад  Esc' 'Escape')))
+    $L.Add(@((Seg ' '), (Btn 'Сохранить  S' 'S'), (Seg ' '), (Btn 'Отменить  Z' 'Z'), (Seg ' '), (Btn 'Исходные  R' 'R'), (Seg ' '),
+             (Btn 'Активировать  A' 'A'), (Seg ' '), (Btn 'Копировать  C' 'C'), (Seg ' '), (Btn 'Фон на E-ядрах  F' 'F'), (Seg ' '), (Btn 'Назад  Esc' 'Escape')))
     $L.Add(@(Seg ''))
     if ($MouseOK) { $L.Add(@(Seg ' Мышь: тяни ползунок или кликни по шкале · колесо = шаг (с Shift — точно) · клик по ◄ / по названию ► — переключить' 'DarkGray')) }
     else { $L.Add(@(Seg ' Мышь в этом окне недоступна — управление с клавиатуры.' 'DarkGray')) }
@@ -499,7 +499,7 @@ function Build-List($schemes, $sel, $msg) {
         $L.Add(@((Seg $mark 'Cyan' $null $tg), (Seg (Fit $sc.Name 36) $fg $bg $tg), (Seg $a 'Green' $null $tg)))
     }
     $L.Add(@(Seg ('─' * 70) 'DarkGray'))
-    $L.Add(@((Seg ' '), (Btn 'Открыть  Enter' 'Enter'), (Seg ' '), (Btn 'Сделать активной  A' 'A'), (Seg ' '), (Btn 'Выход  Esc' 'Escape')))
+    $L.Add(@((Seg ' '), (Btn 'Открыть  Enter' 'Enter'), (Seg ' '), (Btn 'Сделать активной  A' 'A'), (Seg ' '), (Btn 'Фоновые программы на E-ядрах  F' 'F'), (Seg ' '), (Btn 'Выход  Esc' 'Escape')))
     $L.Add(@(Seg ''))
     if ($MouseOK) { $L.Add(@(Seg ' Клик — выбрать схему, двойной клик — открыть. Колесо — листать.' 'DarkGray')) }
     $L.Add(@(Seg ' G-Helper / Armoury переключают схемы вместе со своими режимами.' 'DarkGray'))
@@ -597,6 +597,7 @@ function Editor-Key([string]$key, [bool]$shift, [char]$ch) {
         'Z' { $St.Pend = @{}; $St.Msg = 'Несохранённые правки отменены.' }
         'R' { foreach ($kk in $St.Bk.Keys) { for ($c = 0; $c -lt 2; $c++) { Set-Raw $kk $c $St.Bk[$kk][$c] } }; $St.Msg = 'Исходные значения подставлены. «Сохранить» — применить.' }
         'A' { powercfg /setactive $St.Scheme.Guid | Out-Null; $St.Scheme.Active = $true; $St.Msg = 'Схема сделана активной.' }
+        'F' { Run-Eco; Reset-Screen }
         'Escape' {
             if (-not $St.Pend.Count) { return $true }
             $St.Confirm = $true
@@ -702,7 +703,292 @@ function Run-List {
                 'Escape'    { return }
                 'A'         { powercfg /setactive $schemes[$sel].Guid | Out-Null; $msg = "Активна: $($schemes[$sel].Name)"; $reload = $true }
                 'Enter'     { Open-Scheme $schemes[$sel]; Run-Editor; $reload = $true }
+                'F'         { Run-Eco; $reload = $true }
             }
+        }
+    }
+}
+
+# ---------------------------------------------------------------- фоновые программы на E-ядрах
+# EcoQoS — тот же механизм, что «Режим эффективности» в Диспетчере задач: Windows держит
+# процесс на E-ядрах на низкой частоте. «Только E-ядра» дополнительно жёстко привязывает его к ним.
+# Режим живёт, пока жив процесс, поэтому есть наблюдатель (-Watch) в Планировщике заданий.
+$EcoConfig   = Join-Path $AppDir 'eco-apps.json'
+$EcoTaskName = 'CPU Balancer - фон на E-ядрах'
+$EcoModes    = @('Обычный', 'Эко', 'Только E-ядра')
+$EcoSkip     = @('idle', 'system', 'registry', 'smss', 'csrss', 'wininit', 'services', 'lsass', 'lsaiso', 'winlogon',
+                 'fontdrvhost', 'dwm', 'memory compression', 'secure system', 'audiodg', 'conhost', 'svchost', 'taskmgr')
+
+try {
+    Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class Eco {
+    [StructLayout(LayoutKind.Sequential)]
+    struct THROTTLE { public uint Version; public uint ControlMask; public uint StateMask; }
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll")] static extern bool SetProcessInformation(IntPtr h, int cls, ref THROTTLE info, int size);
+    [DllImport("kernel32.dll")] static extern bool GetProcessInformation(IntPtr h, int cls, ref THROTTLE info, int size);
+    [DllImport("kernel32.dll")] static extern bool SetPriorityClass(IntPtr h, uint cls);
+    [DllImport("kernel32.dll")] static extern bool GetProcessAffinityMask(IntPtr h, out UIntPtr proc, out UIntPtr sys);
+    [DllImport("kernel32.dll")] static extern bool SetProcessAffinityMask(IntPtr h, UIntPtr mask);
+    [DllImport("kernel32.dll")] static extern bool GetSystemCpuSetInformation(IntPtr info, int len, out int ret, IntPtr proc, int flags);
+
+    const uint SET_INFO = 0x0200, QUERY_LIMITED = 0x1000;
+    const int  POWER_THROTTLING = 4;                 // ProcessPowerThrottling
+    const uint EXEC_SPEED = 0x1, IGNORE_TIMER = 0x4; // EcoQoS + не держать высокое разрешение таймера
+
+    // Логические процессоры самого экономного класса (E + LP-E). 0 — если ядра одинаковые.
+    public static ulong EfficientMask() {
+        int len; GetSystemCpuSetInformation(IntPtr.Zero, 0, out len, IntPtr.Zero, 0);
+        if (len <= 0) return 0;
+        IntPtr buf = Marshal.AllocHGlobal(len);
+        try {
+            if (!GetSystemCpuSetInformation(buf, len, out len, IntPtr.Zero, 0)) return 0;
+            int min = 255, max = 0; var lp = new System.Collections.Generic.List<int[]>();
+            for (int off = 0; off < len; ) {
+                int size = Marshal.ReadInt32(buf, off);
+                int group = Marshal.ReadInt16(buf, off + 12), idx = Marshal.ReadByte(buf, off + 14), cls = Marshal.ReadByte(buf, off + 18);
+                if (group == 0 && idx < 64) { lp.Add(new[] { idx, cls }); min = Math.Min(min, cls); max = Math.Max(max, cls); }
+                off += size;
+            }
+            if (min == max) return 0;
+            ulong m = 0; foreach (var x in lp) if (x[1] == min) m |= 1UL << x[0];
+            return m;
+        } finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    // mode: 0 — вернуть как было, 1 — EcoQoS, 2 — EcoQoS + только E-ядра. Возвращает false, если доступ запрещён.
+    public static bool Apply(int pid, int mode, ulong eMask) {
+        IntPtr h = OpenProcess(SET_INFO | QUERY_LIMITED, false, pid);
+        if (h == IntPtr.Zero) return false;
+        try {
+            var t = new THROTTLE { Version = 1 };
+            if (mode > 0) { t.ControlMask = EXEC_SPEED | IGNORE_TIMER; t.StateMask = EXEC_SPEED | IGNORE_TIMER; }
+            bool ok = SetProcessInformation(h, POWER_THROTTLING, ref t, Marshal.SizeOf(typeof(THROTTLE)));
+            SetPriorityClass(h, mode > 0 ? 0x4000u : 0x20u);   // BELOW_NORMAL / NORMAL
+            UIntPtr pm, sm;
+            if (GetProcessAffinityMask(h, out pm, out sm)) {
+                ulong all = sm.ToUInt64();
+                ulong want = (mode == 2 && (eMask & all) != 0) ? (eMask & all) : all;
+                if (pm.ToUInt64() != want) SetProcessAffinityMask(h, new UIntPtr(want));
+            }
+            return ok;
+        } finally { CloseHandle(h); }
+    }
+
+    // Текущее состояние: -1 нет доступа, 0 обычный, 1 EcoQoS, 2 EcoQoS + урезанная привязка
+    public static int State(int pid) {
+        IntPtr h = OpenProcess(QUERY_LIMITED, false, pid);
+        if (h == IntPtr.Zero) return -1;
+        try {
+            var t = new THROTTLE { Version = 1 };
+            if (!GetProcessInformation(h, POWER_THROTTLING, ref t, Marshal.SizeOf(typeof(THROTTLE)))) return -1;
+            if ((t.StateMask & EXEC_SPEED) == 0) return 0;
+            UIntPtr pm, sm;
+            if (GetProcessAffinityMask(h, out pm, out sm) && pm.ToUInt64() != sm.ToUInt64()) return 2;
+            return 1;
+        } finally { CloseHandle(h); }
+    }
+}
+'@
+} catch {}
+$EMask = [uint64]0; try { $EMask = [Eco]::EfficientMask() } catch {}
+
+function Get-EcoApps {
+    $apps = @{}
+    if (Test-Path $EcoConfig) {
+        try {
+            $j = Get-Content $EcoConfig -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($pp in $j.Apps.PSObject.Properties) { $apps[$pp.Name.ToLower()] = [int]$pp.Value }
+        } catch {}
+    }
+    return $apps
+}
+function Save-EcoApps($apps) {
+    $o = [ordered]@{}; foreach ($n in ($apps.Keys | Sort-Object)) { if ($apps[$n] -gt 0) { $o[$n] = $apps[$n] } }
+    [pscustomobject]@{ Apps = $o } | ConvertTo-Json -Depth 3 | Set-Content -Path $EcoConfig -Encoding UTF8
+}
+
+# Применить режим ко всем запущенным процессам с этим exe. Возвращает @(успешно, отказано)
+function Apply-EcoName($exe, [int]$mode) {
+    $ok = 0; $bad = 0
+    foreach ($pr in (Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($exe)) -ErrorAction SilentlyContinue)) {
+        if ($pr.Id -eq $PID) { continue }
+        if ([Eco]::Apply($pr.Id, $mode, $EMask)) { $ok++ } else { $bad++ }
+    }
+    return , @($ok, $bad)
+}
+
+function Get-EcoTask {
+    try { return Get-ScheduledTask -TaskName $EcoTaskName -ErrorAction Stop } catch { return $null }
+}
+function Enable-EcoTask {
+    $self = Join-Path $AppDir 'CPU-Balancer.ps1'
+    # conhost --headless — без мелькающего окна консоли
+    $act = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$self`" -Watch"
+    $trg = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+    $prn = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+    $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $EcoTaskName -Action $act -Trigger $trg -Principal $prn -Settings $set -Force | Out-Null
+    Start-ScheduledTask -TaskName $EcoTaskName
+}
+function Disable-EcoTask {
+    try { Stop-ScheduledTask -TaskName $EcoTaskName -ErrorAction Stop } catch {}
+    try { Unregister-ScheduledTask -TaskName $EcoTaskName -Confirm:$false -ErrorAction Stop } catch {}
+}
+
+# Наблюдатель: применяет режимы к новым процессам сразу при запуске + проверка раз в 30 с
+function Run-Watch {
+    $apps = @{}; $stamp = $null
+    $reload = {
+        $t = $null; if (Test-Path $EcoConfig) { $t = (Get-Item $EcoConfig).LastWriteTimeUtc }
+        if ($t -ne $stamp) { $script:WatchApps = Get-EcoApps; $stamp = $t }
+    }
+    $sweep = {
+        . $reload
+        foreach ($n in $script:WatchApps.Keys) {
+            $m = $script:WatchApps[$n]; if ($m -le 0) { continue }
+            foreach ($pr in (Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($n)) -ErrorAction SilentlyContinue)) {
+                if ([Eco]::State($pr.Id) -lt $m) { [void][Eco]::Apply($pr.Id, $m, $EMask) }
+            }
+        }
+    }
+    $script:WatchApps = @{}
+    . $sweep
+    $events = $true
+    try { Register-CimIndicationEvent -ClassName Win32_ProcessStartTrace -SourceIdentifier EcoStart -ErrorAction Stop | Out-Null } catch { $events = $false }
+    while ($true) {
+        if (-not $events) { Start-Sleep -Seconds 5; . $sweep; continue }
+        $e = Wait-Event -SourceIdentifier EcoStart -Timeout 30
+        if (-not $e) { . $sweep; continue }
+        $ne = $e.SourceEventArgs.NewEvent
+        Remove-Event -EventIdentifier $e.EventIdentifier
+        . $reload
+        $n = ([string]$ne.ProcessName).ToLower()
+        if ($script:WatchApps.ContainsKey($n) -and $script:WatchApps[$n] -gt 0) { [void][Eco]::Apply([int]$ne.ProcessID, $script:WatchApps[$n], $EMask) }
+    }
+}
+
+# Список для экрана: выбранные программы + запущенные, с загрузкой CPU за ~0,6 с
+function Get-EcoRows($apps) {
+    $snap = @{}
+    foreach ($pr in (Get-Process -ErrorAction SilentlyContinue)) { try { $snap[$pr.Id] = $pr.TotalProcessorTime.TotalMilliseconds } catch {} }
+    Start-Sleep -Milliseconds 600
+    $by = @{}
+    foreach ($pr in (Get-Process -ErrorAction SilentlyContinue)) {
+        if ($pr.Id -eq $PID -or $EcoSkip -contains $pr.ProcessName.ToLower()) { continue }
+        $n = $pr.ProcessName.ToLower() + '.exe'
+        if (-not $by.ContainsKey($n)) { $by[$n] = @{ N = 0; Cpu = 0.0; Eco = 0 } }
+        $r = $by[$n]; $r.N++
+        try { if ($snap.ContainsKey($pr.Id)) { $r.Cpu += ($pr.TotalProcessorTime.TotalMilliseconds - $snap[$pr.Id]) } } catch {}
+        if ([Eco]::State($pr.Id) -gt 0) { $r.Eco++ }
+    }
+    $ncpu = [Environment]::ProcessorCount
+    $rows = @()
+    foreach ($n in $by.Keys) { $rows += [pscustomobject]@{ Name = $n; Procs = $by[$n].N; Cpu = [math]::Round($by[$n].Cpu / (6 * $ncpu), 1); Eco = $by[$n].Eco } }
+    foreach ($n in $apps.Keys) { if (-not $by.ContainsKey($n)) { $rows += [pscustomobject]@{ Name = $n; Procs = 0; Cpu = 0; Eco = 0 } } }
+    $sel = @($rows | Where-Object { $apps.ContainsKey($_.Name) } | Sort-Object Name)
+    $rest = @($rows | Where-Object { -not $apps.ContainsKey($_.Name) } | Sort-Object @{ e = 'Cpu'; Descending = $true }, Name)
+    return , @($sel + $rest)
+}
+
+function Build-Eco($E) {
+    $L = New-Object System.Collections.Generic.List[object]
+    $W = 100
+    $L.Add(@((Seg ' CPU Balancer ' 'Black' 'Cyan'), (Seg '  Фоновые программы на E-ядрах' 'White')))
+    $L.Add(@(Seg ('─' * $W) 'DarkGray'))
+    $nE = 0; for ($i = 0; $i -lt 64; $i++) { if ($EMask -band ([uint64]1 -shl $i)) { $nE++ } }
+    $cores = 'ядра одного типа — «Только E-ядра» недоступно'
+    if ($nE) { $cores = "экономных потоков: $nE из $([Environment]::ProcessorCount)" }
+    $task = Get-EcoTask
+    $auto = @(Seg '○ выключено' 'DarkGray')
+    if ($task) { $tst = 'ждёт входа в систему'; if ([string]$task.State -eq 'Running') { $tst = 'работает' }; $auto = @(Seg "● включено ($tst)" 'Green') }
+    $L.Add(@((Seg " $cores" 'Gray'), (Seg '      Автоприменение: ' 'Gray')) + $auto)
+    $L.Add(@(Seg ''))
+    $L.Add(@(Seg ('  ' + (Fit 'Программа' 34) + (Fit 'Режим' 22) + (Fit 'Процессов' 11) + (Fit 'CPU сейчас' 11) + 'Сейчас в эко') 'Gray'))
+    $wh = 40; try { $wh = [Console]::WindowHeight } catch {}; $visible = [math]::Max(5, $wh - 17)
+    if ($E.Row -lt $E.Top) { $E.Top = $E.Row }
+    if ($E.Row -ge $E.Top + $visible) { $E.Top = $E.Row - $visible + 1 }
+    for ($i = $E.Top; $i -lt [math]::Min($E.Rows.Count, $E.Top + $visible); $i++) {
+        $r = $E.Rows[$i]; $sel = ($i -eq $E.Row)
+        $m = 0; if ($E.Apps.ContainsKey($r.Name)) { $m = $E.Apps[$r.Name] }
+        $fg = 'Gray'; if ($m -gt 0) { $fg = 'White' }
+        $cf = 'White'; $cb = $null; if ($sel) { $cf = 'Black'; $cb = 'Cyan' }
+        $mark = '  '; if ($sel) { $mark = '► ' }
+        $mfg = $cf; if (-not $sel -and $m -eq 1) { $mfg = 'Green' } elseif (-not $sel -and $m -eq 2) { $mfg = 'Yellow' }
+        $tg = @{ T = 'erow'; Idx = $i }
+        $eco = ''; if ($r.Procs) { $eco = "$($r.Eco) из $($r.Procs)" }
+        $L.Add(@((Seg $mark 'Cyan' $null $tg), (Seg (Fit $r.Name 34) $fg $null $tg),
+                 (Seg '◄ ' $mfg $cb @{ T = 'eprev'; Idx = $i }), (Seg (Fit ($EcoModes[$m] + ' ►') 20) $mfg $cb @{ T = 'enext'; Idx = $i }),
+                 (Seg (Fit $r.Procs 11) 'Gray' $null $tg), (Seg (Fit ("$($r.Cpu) %") 11) 'Gray' $null $tg), (Seg $eco 'DarkGray' $null $tg)))
+    }
+    if ($E.Rows.Count -gt $visible) { $L.Add(@(Seg ("  … показано $($E.Top + 1)–$([math]::Min($E.Rows.Count, $E.Top + $visible)) из $($E.Rows.Count), колесо/↑↓ — листать") 'DarkGray')) }
+    $L.Add(@(Seg ('─' * $W) 'DarkGray'))
+    foreach ($ln in (Wrap 'Эко — Windows считает программу фоновой (EcoQoS, как «Режим эффективности» в Диспетчере задач): она работает на E-ядрах на низкой частоте и не будит P-ядра. Только E-ядра — ещё и жёсткая привязка к экономным ядрам: максимум холода, но программа медленнее. Не включай для игр и того, чем пользуешься активно.' ($W - 2))) { $L.Add(@(Seg " $ln" 'Gray')) }
+    $L.Add(@(Seg ''))
+    $tw = 'Включить автоприменение  W'; if ($task) { $tw = 'Выключить автоприменение  W' }
+    $L.Add(@((Seg ' '), (Btn $tw 'W'), (Seg ' '), (Btn 'Обновить список  U' 'U'), (Seg ' '), (Btn 'Назад  Esc' 'Escape')))
+    $L.Add(@(Seg ' Режим действует, пока программа запущена. Автоприменение (Планировщик заданий) включает его заново при каждом запуске.' 'DarkGray'))
+    $msgFg = 'Green'; if ($E.Msg -match 'Не удалось|отказ|ОШИБКА') { $msgFg = 'Yellow' }
+    $L.Add(@(Seg " $($E.Msg)" $msgFg))
+    return $L
+}
+
+function Set-EcoMode($E, [int]$i, [int]$dir) {
+    if ($i -lt 0 -or $i -ge $E.Rows.Count) { return }
+    $n = $E.Rows[$i].Name
+    $m = 0; if ($E.Apps.ContainsKey($n)) { $m = $E.Apps[$n] }
+    $max = 2; if (-not $EMask) { $max = 1 }
+    $m = (($m + $dir) % ($max + 1) + ($max + 1)) % ($max + 1)
+    if ($m -gt 0) { $E.Apps[$n] = $m } else { $E.Apps.Remove($n) }
+    Save-EcoApps $E.Apps
+    $res = Apply-EcoName $n $m
+    $E.Rows[$i].Eco = 0; if ($m -gt 0) { $E.Rows[$i].Eco = $res[0] }
+    $E.Msg = "$n → $($EcoModes[$m])."
+    if ($res[0] + $res[1]) { $E.Msg += " Применено к $($res[0]) из $($res[0] + $res[1]) процессов." }
+    if ($res[1]) { $E.Msg += ' Часть процессов защищена системой — отказ доступа.' }
+    if ($m -gt 0 -and -not (Get-EcoTask)) { $E.Msg += ' Включи автоприменение (W), чтобы режим сохранялся после перезапуска программы.' }
+}
+
+function Run-Eco {
+    $E = @{ Apps = (Get-EcoApps); Rows = @(); Row = 0; Top = 0; Msg = 'Считаю загрузку…' }
+    Reset-Screen; Show-Lines (Build-Eco $E)
+    $E.Rows = Get-EcoRows $E.Apps; $E.Msg = '←→ или клик по режиму — переключить. Сверху — уже выбранные, ниже — запущенные по загрузке CPU.'
+    while ($true) {
+        Show-Lines (Build-Eco $E)
+        $ev = Read-Input
+        $key = ''
+        if ($ev.Kind -eq 'resize') { Reset-Screen; continue }
+        if ($ev.Kind -eq 'key') { $key = [string]$ev.K.Key }
+        elseif ($ev.Flags -band 4) { if ($ev.Btn -lt 0) { $key = 'DownArrow' } else { $key = 'UpArrow' } }
+        elseif (($ev.Btn -band 1) -and ($ev.Flags -eq 0 -or $ev.Flags -eq 2)) {
+            $h = Find-Hot $ev.X $ev.Y
+            if ($h) {
+                switch ($h.Tag.T) {
+                    'erow'  { $E.Row = $h.Tag.Idx }
+                    'eprev' { $E.Row = $h.Tag.Idx; Set-EcoMode $E $E.Row -1 }
+                    'enext' { $E.Row = $h.Tag.Idx; Set-EcoMode $E $E.Row 1 }
+                    'key'   { $key = $h.Tag.Key }
+                }
+            }
+        }
+        switch ($key) {
+            'UpArrow'    { $E.Row = [math]::Max(0, $E.Row - 1) }
+            'DownArrow'  { $E.Row = [math]::Min($E.Rows.Count - 1, $E.Row + 1) }
+            'PageUp'     { $E.Row = [math]::Max(0, $E.Row - 10) }
+            'PageDown'   { $E.Row = [math]::Min($E.Rows.Count - 1, $E.Row + 10) }
+            'LeftArrow'  { Set-EcoMode $E $E.Row -1 }
+            'RightArrow' { Set-EcoMode $E $E.Row 1 }
+            'U'          { $E.Msg = 'Считаю загрузку…'; Show-Lines (Build-Eco $E); $E.Rows = Get-EcoRows $E.Apps; $E.Row = [math]::Min($E.Row, [math]::Max(0, $E.Rows.Count - 1)); $E.Msg = 'Список обновлён.' }
+            'W' {
+                try {
+                    if (Get-EcoTask) { Disable-EcoTask; $E.Msg = 'Автоприменение выключено. Уже применённый режим останется до перезапуска программ.' }
+                    else { Enable-EcoTask; $E.Msg = 'Автоприменение включено: работает сейчас и при каждом входе в систему.' }
+                } catch { $E.Msg = "ОШИБКА Планировщика заданий: $($_.Exception.Message)" }
+            }
+            'Escape'     { return }
         }
     }
 }
@@ -718,8 +1004,14 @@ if ($Test) {
     'Исходные (backup) EPP1: ' + ($St.Bk['EPP1'] -join '/') + '  EPP: ' + ($St.Bk['EPP'] -join '/') + '  BOOST: ' + ($St.Bk['BOOST'] -join '/')
     Apply-Preset $Presets[2]
     'После пресета «Hydroc мягче» (не сохранено): ' + (($St.Pend.Keys | Sort-Object | ForEach-Object { "$_=" + ($St.Pend[$_] -join '/') }) -join '  ')
+    ''
+    $EcoTest = @{ Apps = (Get-EcoApps); Rows = (Get-EcoRows (Get-EcoApps)); Row = 0; Top = 0; Msg = '' }
+    Lines-Text (Build-Eco $EcoTest) | Select-Object -First 14
+    'Маска E-ядер: 0x' + $EMask.ToString('X')
     return
 }
+
+if ($Watch) { Run-Watch; return }
 
 $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
