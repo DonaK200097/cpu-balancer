@@ -37,10 +37,6 @@
 
 <div class="shell" class:ready={ui.meta}>
   <nav>
-    <div class="brand">
-      <img src="/icon.png" alt="" width="20" height="20" />
-      <span>CPU Balancer</span>
-    </div>
     {#each nav as n}
       <button class="nitem" class:act={ui.page === n.id} onclick={() => go(n.id)} title={t(`nav.${n.id}`)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d={n.icon} fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -81,9 +77,7 @@
 <style>
   .shell { display: flex; height: 100%; opacity: 0; }
   .shell.ready { opacity: 1; }
-  nav { width: 230px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 12px 6px 10px; }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 12px 16px; font-size: 12px; color: var(--text-2); }
-  .brand img { border-radius: 4px; }
+  nav { width: 230px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 8px 6px 10px; }
   .nitem {
     position: relative; display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 12px; border: 0; border-radius: var(--radius);
     background: transparent; text-align: left; cursor: default;
@@ -96,7 +90,7 @@
   /* узкое окно: только значки, как свёрнутая NavigationView */
   @media (max-width: 1000px) {
     nav { width: 52px; }
-    .brand span, .nitem :global(.lbl) { display: none; }
+    .nitem :global(.lbl) { display: none; }
     .nitem { font-size: 0; justify-content: center; padding: 0; }
   }
   main {

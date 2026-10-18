@@ -15,6 +15,7 @@
   "editor.own": "custom",
   "editor.ownVal": "custom ({v})",
   "editor.noLimit": "no limit",
+  "editor.typeHint": "Click to type a number (Enter — apply, Esc — cancel)",
   "editor.was": "Original: plugged in — {ac}, on battery — {dc}",
   "editor.copyTo": "Copy to “{col}”",
   "editor.presets": "Presets",
@@ -36,6 +37,9 @@
   "msg.preset": "Preset “{name}” filled in. “Save” to apply, “Discard changes” to revert.",
   "msg.copied": "Value copied to the other column.",
   "msg.activated": "Active: {name}.",
+  "msg.outOfRange": "Value {v} is out of range {range} — kept the current one.",
+  "msg.notInteger": "“{v}” — enter a whole number in range {range}; kept the current one.",
+  "msg.zeroNoLimit": "0 means no limit.",
 
   "confirm.title": "You have unsaved changes",
   "confirm.text": "Save changes to the “{name}” plan?",

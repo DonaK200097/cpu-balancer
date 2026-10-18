@@ -75,6 +75,44 @@
     toast(t("msg.activated", { name: view.name }));
   }
 
+  // Ручной ввод числа: клик по значению ползунка → поле ввода, Enter/уход фокуса — применить, Esc — отмена
+  let typing = $state<{ id: string; col: number; text: string } | null>(null);
+
+  function startTyping(id: string, col: number, value: number | null) {
+    selId = id;
+    selCol = col;
+    typing = { id, col, text: value == null ? "" : String(value) };
+  }
+
+  function focusSelect(el: HTMLInputElement) {
+    el.focus();
+    el.select();
+  }
+
+  async function commitTyping() {
+    if (!typing) return;
+    const { id, col, text } = typing;
+    typing = null;
+    const def = controlDef(id);
+    if (!def || def.kind !== "slider") return;
+    const cur = byId.get(id)?.cur[col].value ?? null;
+    const s = text.trim();
+    if (s === "" || s === String(cur)) return;
+    const v = Number(s.replace(",", "."));
+    const ok = Number.isInteger(v) && ((v >= def.min && v <= def.max) || (def.zero && v === 0));
+    if (!ok) {
+      const range = `${def.min}–${def.max}${def.unit ? " " + unit(def.unit) : ""}`;
+      toast(t(Number.isFinite(v) && !Number.isInteger(v) ? "msg.notInteger" : "msg.outOfRange", { v: s, range }) + (def.zero ? " " + t("msg.zeroNoLimit") : ""), "warn");
+      return;
+    }
+    await setCtl(id, col, v);
+  }
+
+  function typingKey(e: KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); commitTyping(); }
+    else if (e.key === "Escape") { e.preventDefault(); typing = null; }
+  }
+
   async function setCtl(id: string, col: number, value: number) {
     selId = id;
     selCol = col;
@@ -126,7 +164,7 @@
 
   function keys(e: KeyboardEvent) {
     if (ui.page !== "editor" || confirm) return;
-    if (e.ctrlKey && (e.key === "s" || e.key === "ы")) { e.preventDefault(); save(); }
+    if (e.ctrlKey && (e.key === "s" || e.key === "ы")) { e.preventDefault(); commitTyping().then(save); }
     else if (e.ctrlKey && (e.key === "z" || e.key === "я") && !(e.target as HTMLElement).closest("input")) { e.preventDefault(); discard(); }
     else if (!e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key) && !(e.target as HTMLElement).closest("input")) {
       const p = ui.meta?.presets[Number(e.key) - 1];
@@ -193,7 +231,8 @@
     </div>
   </header>
 
-  <div class="scroll">
+  <!-- шапка столбцов вне прокрутки: содержимое под неё не заезжает -->
+  <div class="colwrap">
     <div class="grid colhead">
       <div class="caption">{t("editor.setting")}</div>
       {#each [0, 1] as c}
@@ -202,6 +241,9 @@
         </div>
       {/each}
     </div>
+  </div>
+
+  <div class="scroll">
 
     {#if view}
       {#each ui.meta?.groups ?? [] as g}
@@ -233,7 +275,19 @@
                         onchange={(v) => setCtl(def.id, c, v)}
                         onfocus={() => { selId = def.id; selCol = c; }}
                       />
-                      <span class="val">{cellText(def, cv.cur[c])}</span>
+                      {#if typing && typing.id === def.id && typing.col === c}
+                        <input
+                          class="input valinput"
+                          inputmode="numeric"
+                          aria-label={`${t(`ctl.${def.id}.name`)} — ${colName(c)}`}
+                          bind:value={typing.text}
+                          use:focusSelect
+                          onkeydown={typingKey}
+                          onblur={commitTyping}
+                        />
+                      {:else}
+                        <button class="val" title={t("editor.typeHint")} onclick={() => startTyping(def.id, c, cv.cur[c].value)}>{cellText(def, cv.cur[c])}</button>
+                      {/if}
                     {:else}
                       <Select
                         width="100%"
@@ -331,9 +385,11 @@
   .power b { color: var(--text); font-weight: 600; }
   .power svg { width: 16px; height: 16px; color: var(--accent); }
 
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 28px 12px; }
+  /* место под полосу прокрутки резервируется и у шапки, и у списка — столбцы совпадают */
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 12px 28px; scrollbar-gutter: stable; }
   .grid { display: grid; grid-template-columns: minmax(190px, 250px) 1fr 1fr; gap: 16px; align-items: center; }
-  .colhead { position: sticky; top: 0; z-index: 2; padding: 8px 17px 6px; }
+  .colwrap { padding: 0 16px 0 28px; overflow-y: hidden; scrollbar-gutter: stable; border-bottom: 1px solid var(--divider); }
+  .colhead { padding: 0 19px 8px; }
   .colname { font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
   .colname.live { color: var(--accent); }
   .now { font-size: 9px; }
@@ -346,7 +402,12 @@
   .chg { width: 6px; height: 6px; border-radius: 3px; flex: none; }
   .chg.on { background: var(--caution); }
   .cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .val { width: 96px; flex: none; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .val {
+    width: 96px; height: 30px; flex: none; padding: 0 8px; text-align: right; font: inherit; font-variant-numeric: tabular-nums;
+    color: var(--text); background: transparent; border: 1px solid transparent; border-radius: var(--radius); cursor: text;
+  }
+  .val:hover { background: var(--control); border-color: var(--control-stroke); }
+  .valinput { width: 96px; flex: none; height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
   .na { color: var(--text-3); font-size: 12px; }
   .foot { margin: 14px 2px 4px; }
 
