@@ -166,10 +166,6 @@
     if (ui.page !== "editor" || confirm) return;
     if (e.ctrlKey && (e.key === "s" || e.key === "ы")) { e.preventDefault(); commitTyping().then(save); }
     else if (e.ctrlKey && (e.key === "z" || e.key === "я") && !(e.target as HTMLElement).closest("input")) { e.preventDefault(); discard(); }
-    else if (!e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key) && !(e.target as HTMLElement).closest("input")) {
-      const p = ui.meta?.presets[Number(e.key) - 1];
-      if (p) preset(p.id);
-    }
   }
 
   onMount(() => {
@@ -339,9 +335,8 @@
       {#if presetsOpen}
         <div class="backdrop" role="presentation" onpointerdown={() => (presetsOpen = false)}></div>
         <div class="menu">
-          {#each ui.meta?.presets ?? [] as p, i}
+          {#each ui.meta?.presets ?? [] as p}
             <button class="mitem" onclick={() => preset(p.id)}>
-              <span class="num">{i + 1}</span>
               <span class="mtext"><span>{t(`preset.${p.id}.name`)}</span><span class="caption">{t(`preset.${p.id}.desc`)}</span></span>
             </button>
           {/each}
@@ -431,7 +426,6 @@
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
   .mitem { display: flex; gap: 12px; align-items: center; width: calc(100% - 8px); margin: 2px 4px; padding: 6px 10px; border: 0; border-radius: var(--radius); background: transparent; text-align: left; cursor: default; }
   .mitem:hover { background: var(--subtle-hover); }
-  .num { width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center; font-size: 12px; background: var(--subtle-hover); color: var(--text-2); flex: none; }
   .mtext { display: flex; flex-direction: column; }
   .mnote { padding: 6px 14px 6px; border-top: 1px solid var(--divider); margin-top: 4px; }
 
