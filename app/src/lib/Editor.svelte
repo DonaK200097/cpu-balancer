@@ -37,9 +37,17 @@
     return t(`opt.${def.id}.${def.opts[cell.mode].id}`);
   }
 
-  function options(def: Control) {
+  // «Исходное» (значения из бэкапа) скрывается, если в этом столбце оно совпадает с другим вариантом:
+  // бэкенд тогда отдаёт для бэкапа индекс именованного варианта, а не «Исходного»
+  function options(def: Control, cv?: CtlView, c = 0) {
     if (def.kind === "enum") return def.opts.map((v) => ({ value: v, label: t(`opt.${def.id}.${v}`) }));
-    if (def.kind === "mode") return def.opts.map((o, i) => ({ value: i, label: t(`opt.${def.id}.${o.id}`) }));
+    if (def.kind === "mode") {
+      const bk = cv ? cv.backup[c].mode : -1;
+      return def.opts
+        .map((o, i) => ({ o, i }))
+        .filter(({ o, i }) => !o.backup || bk === i)
+        .map(({ o, i }) => ({ value: i, label: t(`opt.${def.id}.${o.id}`) }));
+    }
     return [];
   }
 
@@ -287,7 +295,7 @@
                     {:else}
                       <Select
                         width="100%"
-                        options={options(def)}
+                        options={options(def, cv, c)}
                         value={def.kind === "mode" ? (cv.cur[c].mode >= 0 ? cv.cur[c].mode : null) : cv.cur[c].value}
                         display={cellText(def, cv.cur[c])}
                         onchange={(v) => setCtl(def.id, c, Number(v))}

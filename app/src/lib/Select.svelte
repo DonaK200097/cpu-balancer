@@ -41,6 +41,8 @@
     open = false;
   }
   function outside(e: PointerEvent) {
+    // клик по самой кнопке закроет список через toggle — иначе он закроется и тут же откроется снова
+    if (btn.contains(e.target as Node)) return;
     if (!(e.target as HTMLElement).closest?.(".flyout")) close();
     else window.addEventListener("pointerdown", outside, { once: true });
   }
