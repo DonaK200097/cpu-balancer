@@ -1,0 +1,130 @@
+/* Windows 11 Fluent: Segoe UI Variable, скругления, акцент системы, Mica, светлая/тёмная тема по системе */
+:root {
+  --accent-base: #0067c0;
+  --accent: var(--accent-base);
+  --accent-hover: color-mix(in srgb, var(--accent) 90%, black);
+  --on-accent: #ffffff;
+  --text: rgba(0, 0, 0, 0.896);
+  --text-2: rgba(0, 0, 0, 0.606);
+  --text-3: rgba(0, 0, 0, 0.446);
+  --bg-solid: #f3f3f3;
+  --card: rgba(255, 255, 255, 0.7);
+  --card-hover: rgba(249, 249, 249, 0.5);
+  --card-stroke: rgba(0, 0, 0, 0.0578);
+  --control: rgba(255, 255, 255, 0.7);
+  --control-hover: rgba(249, 249, 249, 0.5);
+  --control-stroke: rgba(0, 0, 0, 0.0578);
+  --control-stroke-bottom: rgba(0, 0, 0, 0.1622);
+  --subtle-hover: rgba(0, 0, 0, 0.0373);
+  --subtle-press: rgba(0, 0, 0, 0.0241);
+  --track: rgba(0, 0, 0, 0.4458);
+  --flyout: #f9f9f9;
+  --divider: rgba(0, 0, 0, 0.0803);
+  --success: #0f7b0f;
+  --caution: #9d5d00;
+  --critical: #c42b1c;
+  --info-bg: rgba(246, 246, 246, 0.5);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.14);
+  --radius: 4px;
+  --radius-l: 8px;
+  color-scheme: light dark;
+  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: color-mix(in srgb, var(--accent-base) 55%, white);
+    --accent-hover: color-mix(in srgb, var(--accent) 90%, black);
+    --on-accent: #000000;
+    --text: #ffffff;
+    --text-2: rgba(255, 255, 255, 0.786);
+    --text-3: rgba(255, 255, 255, 0.544);
+    --bg-solid: #202020;
+    --card: rgba(255, 255, 255, 0.0512);
+    --card-hover: rgba(255, 255, 255, 0.0837);
+    --card-stroke: rgba(0, 0, 0, 0.1);
+    --control: rgba(255, 255, 255, 0.0605);
+    --control-hover: rgba(255, 255, 255, 0.0837);
+    --control-stroke: rgba(255, 255, 255, 0.0698);
+    --control-stroke-bottom: rgba(255, 255, 255, 0.0698);
+    --subtle-hover: rgba(255, 255, 255, 0.0605);
+    --subtle-press: rgba(255, 255, 255, 0.0419);
+    --track: rgba(255, 255, 255, 0.5442);
+    --flyout: #2c2c2c;
+    --divider: rgba(255, 255, 255, 0.0837);
+    --success: #6ccb5f;
+    --caution: #fce100;
+    --critical: #ff99a4;
+    --info-bg: rgba(255, 255, 255, 0.0326);
+    --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.26);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body.no-mica { background: var(--bg-solid); }
+#app { height: 100%; }
+::selection { background: var(--accent); color: var(--on-accent); }
+
+h1, h2, h3 { margin: 0; font-weight: 600; }
+.title { font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif; font-size: 28px; line-height: 36px; font-weight: 600; }
+.subtitle { font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif; font-size: 20px; line-height: 28px; font-weight: 600; }
+.body-strong { font-weight: 600; }
+.caption { font-size: 12px; line-height: 16px; color: var(--text-2); }
+.muted { color: var(--text-2); }
+
+button { font: inherit; color: inherit; }
+
+/* Кнопки */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 32px; padding: 5px 12px 6px; border-radius: var(--radius);
+  background: var(--control); border: 1px solid var(--control-stroke); border-bottom-color: var(--control-stroke-bottom);
+  cursor: default; white-space: nowrap; user-select: none; transition: background 0.08s;
+}
+.btn:hover:not(:disabled) { background: var(--control-hover); }
+.btn:active:not(:disabled) { color: var(--text-2); }
+.btn:disabled { color: var(--text-3); }
+.btn.accent { background: var(--accent); color: var(--on-accent); border-color: transparent; border-bottom-color: rgba(0, 0, 0, 0.4); }
+.btn.accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.accent:disabled { background: var(--subtle-hover); color: var(--text-3); border-color: transparent; }
+.btn.subtle { background: transparent; border-color: transparent; }
+.btn.subtle:hover:not(:disabled) { background: var(--subtle-hover); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* Карточки */
+.card { background: var(--card); border: 1px solid var(--card-stroke); border-radius: var(--radius-l); }
+
+/* Поля ввода */
+.input {
+  height: 32px; padding: 0 10px; border-radius: var(--radius); font: inherit; color: var(--text);
+  background: var(--control); border: 1px solid var(--control-stroke); border-bottom-color: var(--track); outline: none;
+}
+.input:focus { border-bottom: 2px solid var(--accent); padding-bottom: 0; }
+
+/* Переключатель */
+.toggle { display: inline-flex; align-items: center; gap: 12px; cursor: default; user-select: none; }
+.toggle .track {
+  width: 40px; height: 20px; border-radius: 10px; border: 1px solid var(--track); position: relative; transition: background 0.1s;
+}
+.toggle .track::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 6px; background: var(--text-2);
+  transition: left 0.15s cubic-bezier(0.2, 0, 0, 1), width 0.1s;
+}
+.toggle:hover .track::after { width: 14px; height: 14px; top: 2px; }
+.toggle.on .track { background: var(--accent); border-color: var(--accent); }
+.toggle.on .track::after { left: 23px; background: var(--on-accent); }
+.toggle.on:hover .track::after { left: 21px; }
+.toggle.disabled { opacity: 0.5; pointer-events: none; }
+
+/* Полосы прокрутки в стиле Windows 11 */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; border: 4px solid transparent; background-clip: padding-box; }
+*:hover::-webkit-scrollbar-thumb { background-color: var(--text-3); }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+
+:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; border-radius: var(--radius); }

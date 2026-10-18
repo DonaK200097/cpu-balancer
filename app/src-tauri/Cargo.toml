@@ -1,0 +1,48 @@
+[package]
+name = "cpu-balancer"
+version = "2.0.0"
+description = "CPU Balancer — fine-tuning of laptop CPU power plans"
+authors = ["DonaK200097"]
+license = "MIT"
+repository = "https://github.com/DonaK200097/cpu-balancer"
+edition = "2021"
+
+[lib]
+name = "cpu_balancer_lib"
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+wmi = "0.18"
+# тот же, что у Tauri: приостановка WebView2, пока окно скрыто в трее
+webview2-com = "0.39"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Power",
+    "Win32_System_Threading",
+    "Win32_System_SystemInformation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_Console",
+    "Win32_Globalization",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

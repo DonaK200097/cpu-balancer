@@ -3,3 +3,12 @@ backups/
 g16-power-backup.json
 Откат_*.cmd
 eco-apps.json
+
+# Сборка v2
+app/src-tauri/target/
+node_modules/
+app/dist/
+# Собранный exe рядом с личными бэкапами (для запуска из корня)
+/cpu-balancer.exe
+/settings.json
+app/src-tauri/gen/
